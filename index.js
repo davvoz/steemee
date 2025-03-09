@@ -9,6 +9,7 @@ import eventEmitter from './utils/EventEmitter.js';
 import authService from './services/AuthService.js';
 import Breadcrumbs from './components/Breadcrumbs.js';
 import NavigationManager from './utils/NavigationManager.js';
+import WalletView from './views/WalletView.js';
 
 // Initialize breadcrumbs
 const breadcrumbs = new Breadcrumbs();
@@ -54,7 +55,9 @@ router
   .addRoute('/promoted', HomeView, { tag: 'promoted' }) 
   .addRoute('/@:username', ProfileView)
   .addRoute('/@:author/:permlink', PostView)
+  .addRoute('/wallet', WalletView)
   .setNotFound(NotFoundView);
+ 
 
 // Auth guard middleware
 router.beforeEach((to, next) => {

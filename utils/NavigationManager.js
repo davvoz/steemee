@@ -86,7 +86,21 @@ class NavigationManager {
 
       // Get regular navigation items
       const regularItems = mainNavItems
-        .filter(item => item.showInBottom && (!item.mobileOnly || this.isMobile));
+        .filter(item => {
+          // Check if item should be shown in bottom nav
+          if (!item.showInBottom) return false;
+          
+          // Check if item should only be shown on mobile
+          if (item.mobileOnly && !this.isMobile) return false;
+          
+          // Optional: Check if wallet should only be shown when logged in
+          if (item.id === 'wallet') {
+            const isLoggedIn = !!localStorage.getItem('currentUser'); // Simple check, replace with your auth logic
+            return isLoggedIn;
+          }
+          
+          return true;
+        });
       
       // Split items for left and right sides evenly
       const halfIndex = Math.ceil(regularItems.length / 2);

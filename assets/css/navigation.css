@@ -314,3 +314,34 @@ body.menu-open {
     border-radius: 2px;
   }
 }
+
+/* Wallet icon animation */
+.menu-item[href="/wallet"] .icon,
+.bottom-nav-item[data-id="wallet"] .material-icons {
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.menu-item[href="/wallet"]:hover .icon,
+.bottom-nav-item[data-id="wallet"]:hover .material-icons {
+  transform: scale(1.1);
+  color: var(--primary-color);
+}
+
+/* Additional style for when wallet is active */
+.menu-item[href="/wallet"].active .icon,
+.bottom-nav-item[data-id="wallet"].active .material-icons {
+  color: var(--primary-color);
+  animation: wallet-pulse 1.5s ease-in-out;
+}
+
+@keyframes wallet-pulse {
+  0% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.15);
+  }
+  30% {
+    transform: scale(1);
+  }
+}
