@@ -653,3 +653,80 @@ img[src*="imgur"] {
     padding-bottom: 75%; /* Slightly taller on mobile */
   }
 }
+
+/* Aggiungi questi stili per migliorare la visualizzazione delle immagini */
+
+/* Contenitore immagine con pulsante di apertura */
+.img-container {
+  position: relative;
+  margin: var(--space-md) 0;
+  max-width: 100%;
+  display: block;
+}
+
+/* Stili immagine principale */
+.content-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.content-image:hover {
+  transform: scale(1.01);
+}
+
+/* Pulsante apertura immagine */
+.open-image-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.img-container:hover .open-image-button {
+  opacity: 1;
+}
+
+/* Stili per immagini in base alla fonte */
+img[src*="steemitimages.com"],
+img[src*="imgur.com"],
+img[src*="discordapp.net"] {
+  margin: var(--space-md) auto;
+}
+
+/* Styling per immagini grandi */
+@media (min-width: 769px) {
+  img.content-image {
+    max-width: calc(100% - var(--space-md) * 2);
+  }
+  
+  /* Adatta immagini molto grandi */
+  img[src*="steemitimages.com/0x0/"] {
+    max-width: 100%;
+    margin: var(--space-lg) auto;
+  }
+}
+
+/* Link pericolosi */
+.phishy-link {
+  color: #d32f2f;
+  background-color: #ffebee;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-decoration: line-through;
+}
