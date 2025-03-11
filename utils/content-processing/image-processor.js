@@ -2,7 +2,8 @@ import {
   IMAGE_REGEX, 
   IMAGE_URL_REGEX,
   MARKDOWN_IMAGE_REGEX,
-  HTML_IMAGE_REGEX
+  HTML_IMAGE_REGEX,
+  STEEM_CDN_HASH_REGEX  // Aggiungi questa importazione
 } from '../regex.js';
 
 /**

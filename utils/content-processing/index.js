@@ -16,6 +16,7 @@ export class ContentProcessor {
       proxyImages: true,
       maxImageWidth: 800,
       allowHtml: false,
+      debug: false,
       ...options
     };
     
@@ -34,10 +35,11 @@ export class ContentProcessor {
    * @returns {Object} Risultato dell'elaborazione
    */
   process(content, metadata = {}) {
-    // Stampa il contenuto originale per debug
-    console.log('------------- CONTENUTO ORIGINALE -------------');
-    console.log(content);
-    console.log('----------------------------------------------');
+    // Debug originale
+    if (this.options.debug) {
+      console.log('%c ------------- CONTENUTO ORIGINALE -------------', 'background: #333; color: #bada55');
+      console.log(content);
+    }
     
     if (!content) return { html: '', images: [], videos: [], links: [] };
     
@@ -48,14 +50,27 @@ export class ContentProcessor {
         breaks: true
       });
       
-      // Fase 2: Elaborazione Embed
+      if (this.options.debug) {
+        console.log('%c ------------- DOPO MARKDOWN -------------', 'background: #333; color: #FFA500');
+        console.log(html);
+      }
+      
+      // Fase 2: Elaborazione Embed (YouTube, Vimeo, ecc.)
       const embedResult = processEmbeds(html, {
-        enableVideos: this.options.enableVideos
+        enableVideos: this.options.enableVideos,
+        enableVimeo: this.options.enableVideos,
+        enableThreeSpeak: this.options.enableVideos
       });
       html = embedResult.html;
       
-      // Aggiorna le collezioni con i risultati degli embed
+      // Aggiorna le collezioni
       this.mergeCollections(embedResult);
+      
+      if (this.options.debug) {
+        console.log('%c ------------- DOPO EMBED -------------', 'background: #333; color: #FF6347');
+        console.log(html);
+        console.log('Placeholder trovati:', embedResult.placeholders?.length || 0);
+      }
       
       // Fase 3: Ottimizzazione immagini
       const imageResult = optimizeImages(html, {
@@ -65,8 +80,13 @@ export class ContentProcessor {
       });
       html = imageResult.html;
       
-      // Aggiorna le collezioni con i risultati delle immagini
+      // Aggiorna le collezioni
       this.mergeCollections(imageResult);
+      
+      if (this.options.debug) {
+        console.log('%c ------------- DOPO IMMAGINI -------------', 'background: #333; color: #4CAF50');
+        console.log(html);
+      }
       
       // Fase 4: Sanitizzazione HTML
       html = sanitizeHTML(html, {
@@ -75,7 +95,12 @@ export class ContentProcessor {
         transformTags: this.getTagTransformers()
       });
       
-      // Fase 5: Post-processing
+      if (this.options.debug) {
+        console.log('%c ------------- DOPO SANITIZE -------------', 'background: #333; color: #2196F3');
+        console.log(html);
+      }
+      
+      // Fase 5: Post-processing (sostituzione placeholder con embed effettivi)
       const finalResult = postProcess(html, {
         embedPlaceholders: embedResult.placeholders || []
       });
@@ -83,6 +108,11 @@ export class ContentProcessor {
       
       // Aggiorna le collezioni
       this.mergeCollections(finalResult);
+      
+      if (this.options.debug) {
+        console.log('%c ------------- RISULTATO FINALE -------------', 'background: #333; color: #9C27B0');
+        console.log(html);
+      }
       
       // Crea elemento DOM
       const container = document.createElement('div');
@@ -184,45 +214,24 @@ export class ContentProcessor {
   mergeCollections(result) {
     if (!result) return;
     
-    if (result.images) {
-      if (Array.isArray(result.images)) {
-        result.images.forEach(img => this.images.add(img));
-      } else if (typeof result.images === 'object' && result.images.forEach) {
-        result.images.forEach(img => this.images.add(img));
-      }
-    }
+    const collectionsMap = {
+      'images': this.images,
+      'videos': this.videos,
+      'links': this.links,
+      'mentions': this.mentions,
+      'tags': this.tags
+    };
     
-    if (result.videos) {
-      if (Array.isArray(result.videos)) {
-        result.videos.forEach(vid => this.videos.add(vid));
-      } else if (typeof result.videos === 'object' && result.videos.forEach) {
-        result.videos.forEach(vid => this.videos.add(vid));
+    Object.entries(collectionsMap).forEach(([key, collection]) => {
+      const resultCollection = result[key];
+      if (!resultCollection) return;
+      
+      if (Array.isArray(resultCollection)) {
+        resultCollection.forEach(item => collection.add(item));
+      } else if (resultCollection instanceof Set) {
+        resultCollection.forEach(item => collection.add(item));
       }
-    }
-    
-    if (result.links) {
-      if (Array.isArray(result.links)) {
-        result.links.forEach(link => this.links.add(link));
-      } else if (typeof result.links === 'object' && result.links.forEach) {
-        result.links.forEach(link => this.links.add(link));
-      }
-    }
-    
-    if (result.mentions) {
-      if (Array.isArray(result.mentions)) {
-        result.mentions.forEach(m => this.mentions.add(m));
-      } else if (typeof result.mentions === 'object' && result.mentions.forEach) {
-        result.mentions.forEach(m => this.mentions.add(m));
-      }
-    }
-    
-    if (result.tags) {
-      if (Array.isArray(result.tags)) {
-        result.tags.forEach(tag => this.tags.add(tag));
-      } else if (typeof result.tags === 'object' && result.tags.forEach) {
-        result.tags.forEach(tag => this.tags.add(tag));
-      }
-    }
+    });
   }
   
   /**
@@ -241,11 +250,10 @@ export class ContentProcessor {
    */
   getAllowedAttributes() {
     return {
-      // Configurazione attributi sicuri
       img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'class', 'data-original-src'],
       a: ['href', 'title', 'target', 'rel', 'class'],
-      div: ['class', 'style'],
-      iframe: ['src', 'width', 'height', 'allowfullscreen', 'frameborder', 'class'],
+      div: ['class', 'style', 'data-embed-id', 'data-embed-type', 'data-start-time'],
+      iframe: ['src', 'width', 'height', 'allowfullscreen', 'frameborder', 'class', 'allow', 'loading'],
       td: ['style', 'colspan', 'rowspan'],
       th: ['style', 'colspan', 'rowspan']
     };

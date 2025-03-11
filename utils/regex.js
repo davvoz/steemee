@@ -120,3 +120,6 @@ export const OG_IMAGE_REGEX = /<meta[^>]*property="og:image"[^>]*content="([^"]+
 export const WHITESPACE_REGEX = /^\s*$/;
 export const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\(([^)]+)\)/gi;
 export const BBCODE_REGEX = /\[([a-z]+)(?:=[^\]]*)?]([\s\S]*?)\[\/\1]/gi;
+
+// Regex specifica per CDN Steem con hash IPFS
+export const STEEM_CDN_HASH_REGEX = /https?:\/\/(?:cdn\.)?steemitimages\.com\/DQ[a-zA-Z0-9]+\/([^"\s)]+)/gi;

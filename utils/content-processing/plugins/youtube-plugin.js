@@ -1,4 +1,4 @@
-import { createEmbedPlaceholder } from '../embed-processor.js';
+import { createEmbedPlaceholder } from '../post-processor.js'; 
 
 // Regex per vari formati di URL YouTube
 const youtubeRegexes = {
@@ -21,7 +21,7 @@ export const youtubePlugin = {
     let processedHtml = html;
     
     // Funzione per elaborare un match
-    const processMatch = (match, id, url, regex) => {
+    const processMatch = (match, id, url) => {
       if (!id || id.length !== 11) return match;
       
       // Estrai il tempo di inizio, se presente
@@ -52,7 +52,6 @@ export const youtubePlugin = {
         type: 'youtube',
         startTime,
         originalUrl: url,
-        placeholder,
         thumbnailUrl
       });
       
@@ -63,7 +62,7 @@ export const youtubePlugin = {
     Object.entries(youtubeRegexes).forEach(([type, regex]) => {
       regex.lastIndex = 0;
       processedHtml = processedHtml.replace(regex, (match, id) => {
-        return processMatch(match, id, match, regex);
+        return processMatch(match, id, match);
       });
     });
     
