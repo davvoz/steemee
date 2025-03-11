@@ -1,4 +1,5 @@
-import ImageUtils from '../process-body/ImageUtils.js';
+import { extractAllImageUrls, proxyImageUrl } from '../images/index.js';
+import { IMAGE_REGEX, MARKDOWN_IMAGE_REGEX, HTML_IMAGE_REGEX, IMAGE_EXTENSION_REGEX } from '../regex.js';
 
 /**
  * Processa e ottimizza le immagini nel contenuto HTML
@@ -10,48 +11,39 @@ export function optimizeImages(html, options = {}) {
   const {
     proxyImages = true,
     maxWidth = 800,
-    enableImages = true,
-    lazyLoad = true,
-    extractAll = true
+    enableImages = true
   } = options;
   
-  // Se le immagini sono disabilitate, restituisci l'HTML originale
-  if (!enableImages) {
-    return {
-      html,
-      images: []
-    };
-  }
+  if (!enableImages) return { html, images: [] };
   
-  const images = new Set();
-  let processedHtml = html;
+  // Usa l'approccio del modulo di estrazione
+  const allImageUrls = extractAllImageUrls(html);
+  
+  // Crea un set di immagini trovate
+  const images = new Set(allImageUrls);
   
   try {
-    // Crea DOM temporaneo per elaborare le immagini
+    // Usa l'elaborazione DOM per sostituire gli attributi src
     const tempDoc = document.implementation.createHTMLDocument('');
     const container = tempDoc.createElement('div');
     container.innerHTML = html;
     
-    // Raccogli ed elabora tutte le immagini
+    // Elabora le immagini trovate in DOM
     const imageElements = container.querySelectorAll('img');
-    
     imageElements.forEach(img => {
       try {
-        // Ottieni src dell'immagine
         const originalSrc = img.getAttribute('src');
         if (!originalSrc) return;
         
-        // Aggiungi alla collezione delle immagini trovate
+        // Aggiungi all'elenco generale
         images.add(originalSrc);
         
-        // Se l'immagine è già stata proxata, non farlo di nuovo
-        if (proxyImages && !originalSrc.includes('steemitimages.com')) {
-          // Ottimizza URL tramite ImageUtils
-          const optimizedUrl = ImageUtils.optimizeImageUrl(originalSrc, { 
-            width: maxWidth, 
-            height: 0 
+        // Converti URL solo se necessario
+        if (proxyImages) {
+          // Usa funzione dal nostro nuovo modulo
+          const optimizedUrl = proxyImageUrl(originalSrc, { 
+            width: maxWidth
           });
-          
           img.setAttribute('src', optimizedUrl);
         }
         
@@ -60,60 +52,23 @@ export function optimizeImages(html, options = {}) {
           img.setAttribute('alt', 'Content image');
         }
         
-        if (lazyLoad && !img.hasAttribute('loading')) {
-          img.setAttribute('loading', 'lazy');
-        }
-        
-        // Aggiunta di data-original-src per riferimento originale
+        img.setAttribute('loading', 'lazy');
         img.setAttribute('data-original-src', originalSrc);
-        
-        // Rimuovi width/height inline per permettere responsività
-        if (img.hasAttribute('width') && img.getAttribute('width') !== '100%') {
-          img.removeAttribute('width');
-        }
-        if (img.hasAttribute('height')) {
-          img.removeAttribute('height');
-        }
-        
-        // Aggiungi classe per lo styling
         img.classList.add('content-image');
-      } catch (imgError) {
-        console.warn('Errore nella processazione immagine:', imgError);
+      } catch (error) {
+        console.warn('Errore elaborazione immagine:', error);
       }
     });
     
-    // Estrai anche immagini che non sono in tag img
-    if (extractAll) {
-      try {
-        const extractedUrls = ImageUtils.extractAllImageUrls(html);
-        if (Array.isArray(extractedUrls)) {
-          extractedUrls
-            .filter(url => !Array.from(images).includes(url))
-            .forEach(url => {
-              // Aggiungi solo URL validi
-              if (url && typeof url === 'string' && url.startsWith('http')) {
-                images.add(url);
-              }
-            });
-        }
-      } catch (extractError) {
-        console.warn('Errore nell\'estrazione immagini aggiuntive:', extractError);
-      }
-    }
-    
-    // Ottieni l'HTML elaborato
-    processedHtml = container.innerHTML;
-    
     return {
-      html: processedHtml,
+      html: container.innerHTML,
       images: [...images]
     };
   } catch (error) {
-    console.error('Errore nell\'ottimizzazione immagini:', error);
+    console.error('Errore processo immagini:', error);
     return {
       html,
-      images: [...images],
-      error
+      images: [...images]
     };
   }
 }
@@ -135,21 +90,14 @@ export function extractFeaturedImage(content, metadata = {}) {
     }
     
     // Fallback alla logica standard
-    const imgMatches = [
-      // Markdown image
-      content.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/i),
-      // HTML img tag
-      content.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i),
-      // Raw URL immagine
-      content.match(/(https?:\/\/\S+\.(?:jpe?g|png|gif))/i)
-    ];
+    const markdownMatch = content.match(MARKDOWN_IMAGE_REGEX);
+    if (markdownMatch && markdownMatch[1]) return markdownMatch[1];
     
-    // Usa il primo match valido
-    for (const match of imgMatches) {
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
+    const htmlMatch = content.match(HTML_IMAGE_REGEX);
+    if (htmlMatch && htmlMatch[1]) return htmlMatch[1];
+    
+    const urlMatch = content.match(IMAGE_REGEX);
+    if (urlMatch && urlMatch[1]) return urlMatch[1];
     
     return null;
   } catch (error) {
@@ -204,7 +152,7 @@ export function isImageUrl(url) {
     return ImageUtils.isValidImageUrl(url);
   } catch (error) {
     // Fallback con verifica semplice dell'estensione
-    return /\.(jpe?g|png|gif|webp|svg|bmp)(\?.*)?$/i.test(url);
+    return IMAGE_EXTENSION_REGEX.test(url);
   }
 }
 
