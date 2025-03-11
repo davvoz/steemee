@@ -34,6 +34,11 @@ export class ContentProcessor {
    * @returns {Object} Risultato dell'elaborazione
    */
   process(content, metadata = {}) {
+    // Stampa il contenuto originale per debug
+    console.log('------------- CONTENUTO ORIGINALE -------------');
+    console.log(content);
+    console.log('----------------------------------------------');
+    
     if (!content) return { html: '', images: [], videos: [], links: [] };
     
     try {
