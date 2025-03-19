@@ -3,6 +3,7 @@ import regexService from '../services/RegexService.js';
 import PluginSystem from '../utils/markdown/PluginSystem.js';
 import YouTubePlugin from '../utils/markdown/plugins/YouTubePlugin.js';
 import ImagePlugin from '../utils/markdown/plugins/ImagePlugin.js';
+import LinkPlugin from '../utils/markdown/plugins/LinkPlugin.js';
 import { REGEX_PATTERNS, LARGE_IMAGE_PATTERNS } from '../utils/markdown/regex-config.js';
 
 /**
@@ -42,11 +43,13 @@ class ContentRenderer {
     // Register both YouTube and Image plugins
     this.pluginSystem.registerPlugin(new YouTubePlugin());
     this.pluginSystem.registerPlugin(new ImagePlugin());
+    this.pluginSystem.registerPlugin(new LinkPlugin()); // Aggiungi il nuovo plugin
     
     // Store plugin instances for direct access when needed
     this.plugins = {
       youtube: this.pluginSystem.getPluginByName('youtube'),
-      image: this.pluginSystem.getPluginByName('image')
+      image: this.pluginSystem.getPluginByName('image'),
+      link: this.pluginSystem.getPluginByName('link')
     };
 
     // Use regexService instead of direct patterns
@@ -171,20 +174,56 @@ class ContentRenderer {
     // Add raw content logging
     if (data.body) {
       this.logRawContent(data.body);
+      window.lastRawContent = data.body; // Salva il contenuto raw originale
+    }
+    
+    // Pre-process HTML content to extract markdown within HTML tags
+    let body = data.body || '';
+    
+    // Extract YouTube videos before any processing to preserve them
+    if (renderOptions.enableYouTube && body) {
+      this.extractedVideos = this.extractYouTubeVideos(body);
+      if (this.extractedVideos.length > 0) {
+        body = this.replaceYouTubeLinksWithPlaceholders(body, this.extractedVideos);
+      }
+    }
+    
+    // Pre-process HTML content to handle markdown in HTML tags
+    let preprocessedContent = this.preprocessHtmlContent(body);
+    
+    // Extract images using the plugin before markdown processing
+    let extractedImages = [];
+    if (this.plugins.image && body) {
+      extractedImages = this.plugins.image.extract(body);
     }
     
     // Pre-process content with plugin system
-    let processedMarkdown = data.body || '';
-    if (processedMarkdown) {
-      processedMarkdown = this.pluginSystem.preProcess(processedMarkdown, renderOptions);
-    }
+    preprocessedContent = this.pluginSystem.preProcess(preprocessedContent, renderOptions);
     
     // Render markdown to HTML
-    let processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
+    let processedContent = this.renderWithFallback(preprocessedContent, renderOptions);
     
-    // Post-process content to restore rich elements
-    processedContent = this.pluginSystem.postProcess(processedContent, renderOptions);
+    // Restore HTML blocks with processed markdown
+    processedContent = this.restoreHtmlContent(processedContent);
     
+    // Ensure images are properly restored in the content
+    if (extractedImages.length > 0 && this.plugins.image) {
+      processedContent = this.plugins.image.restoreContent(
+        processedContent, 
+        extractedImages,
+        renderOptions
+      );
+    }
+    
+    // Restore YouTube videos from placeholders to embed iframes
+    if (renderOptions.enableYouTube && this.extractedVideos.length > 0) {
+      processedContent = this.restoreYouTubeEmbeds(
+        processedContent, 
+        this.extractedVideos,
+        renderOptions.videoDimensions
+      );
+    }
+
     // Process content based on the type of content
     let hasLargeImages = false;
     
@@ -364,35 +403,21 @@ class ContentRenderer {
     const images = container.querySelectorAll('img');
     images.forEach(img => {
       const src = img.getAttribute('src');
-      if (src) {
-        // Skip if already has srcset
-        if (!img.hasAttribute('srcset') && !src.includes('srcset=')) {
-          // Create responsive srcset for steemit images
-          if (src.includes('cdn.steemitimages.com') || 
-              src.includes('steemitimages.com') || 
-              src.includes('files.peakd.com')) {
-            
-            // Create 1x and 2x versions for srcset
-            let baseUrl = src;
-            
-            // Replace any existing dimension parameters
-            if (baseUrl.includes('steemitimages.com/0x0/')) {
-              baseUrl = baseUrl.replace('steemitimages.com/0x0/', 'steemitimages.com/640x0/');
-            } else if (!baseUrl.includes('steemitimages.com/640x0/')) {
-              baseUrl = `https://steemitimages.com/640x0/${baseUrl}`;
-            }
-            
-            // Create 2x version for high resolution
-            const highResUrl = baseUrl.replace('640x0', '1280x0');
-            
-            // Set srcset attribute
-            img.setAttribute('srcset', `${baseUrl} 1x, ${highResUrl} 2x`);
-            
-            // Ensure the src is the 1x version
-            img.src = baseUrl;
-          }
-        }
+      if (!src) return;
+      
+      // Skip if already processed
+      if (img.hasAttribute('data-processed')) return;
+      
+      // Usa ImageService per processare l'immagine
+      const processedUrl = imageService.processPostImage(src);
+      const srcset = imageService.createResponsiveSrcSet(src);
+      
+      if (srcset) {
+        img.setAttribute('srcset', srcset);
       }
+      
+      img.src = processedUrl;
+      img.setAttribute('data-processed', 'true');
     });
   }
   
@@ -495,7 +520,7 @@ class ContentRenderer {
   /**
    * Fix unprocessed markdown tables in HTML content
    * @param {string} html - HTML content that might contain unprocessed markdown tables
-   * @returns {string} HTML with tables fixed
+   * @returns {string} Fixed HTML content
    */
   fixUnprocessedTables(html) {
     if (!html) return '';
@@ -816,8 +841,15 @@ class ContentRenderer {
     image.loading = 'lazy';
     image.style.maxWidth = '100%';  // Ensure images don't overflow
     
-    // Use imageService for optimized URL
-    image.src = imageService.optimizeImageUrl(imageUrl);
+    // Usa ImageService per processare l'immagine
+    const processedUrl = imageService.processPostImage(imageUrl);
+    const srcset = imageService.createResponsiveSrcSet(imageUrl);
+    
+    if (srcset) {
+      image.setAttribute('srcset', srcset);
+    }
+    
+    image.src = processedUrl;
     
     // Add error handling
     image.onerror = () => {
@@ -1026,6 +1058,69 @@ class ContentRenderer {
       }
       return "Nessun contenuto da copiare";
     };
+  }
+
+  /**
+   * Pre-processa il contenuto prima di inviarlo al renderer markdown
+   * Estrae il markdown dai tag HTML e lo elabora separatamente
+   */
+  preprocessHtmlContent(content) {
+    if (!content) return '';
+    
+    // Array per tenere traccia dei contenuti HTML estratti
+    this.htmlContentMap = new Map();
+    let uniqueId = 0;
+    
+    // Cerca tag HTML specifici che potrebbero contenere markdown
+    return content.replace(/<(center|div|p)([^>]*)>([\s\S]*?)<\/\1>/gi, (match, tag, attrs, innerContent) => {
+      // Genera un ID univoco per questo blocco HTML
+      const placeholder = `HTML_BLOCK_${uniqueId++}_PLACEHOLDER`;
+      
+      // Memorizza il contenuto HTML originale e le sue informazioni
+      this.htmlContentMap.set(placeholder, {
+        tag,
+        attrs,
+        innerContent,
+        originalMatch: match
+      });
+      
+      // Restituisce solo il contenuto interno, da elaborare separatamente
+      return innerContent;
+    });
+  }
+
+  /**
+   * Ripristina i blocchi HTML dopo il rendering markdown
+   */
+  restoreHtmlContent(rendered) {
+    if (!rendered || !this.htmlContentMap || this.htmlContentMap.size === 0) return rendered;
+    
+    let result = rendered;
+    const processedBlocks = new Map();
+    
+    // Prima elabora individualmente ogni contenuto HTML estratto
+    for (const [placeholder, info] of this.htmlContentMap.entries()) {
+      // Assicurati che il contenuto markdown all'interno dell'HTML sia stato elaborato correttamente
+      // Nota: questa volta usiamo this.renderWithFallback direttamente, non il preprocessed
+      const processedInnerContent = this.renderWithFallback(info.innerContent, this.options);
+      processedBlocks.set(placeholder, processedInnerContent);
+    }
+    
+    // Ora ricostruisci il HTML completo con i tag originali
+    for (const [placeholder, processedInnerContent] of processedBlocks.entries()) {
+      const info = this.htmlContentMap.get(placeholder);
+      const reconstructedHtml = `<${info.tag}${info.attrs || ''}>${processedInnerContent}</${info.tag}>`;
+      
+      if (result.includes(info.innerContent)) {
+        // Sostituisci solo la prima occorrenza per evitare conflitti
+        result = result.replace(info.innerContent, reconstructedHtml);
+      } else {
+        // Se il contenuto originale non viene trovato, aggiungilo alla fine
+        result += reconstructedHtml;
+      }
+    }
+    
+    return result;
   }
 }
 

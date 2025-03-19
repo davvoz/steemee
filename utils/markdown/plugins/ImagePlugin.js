@@ -538,23 +538,6 @@ export default class ImagePlugin extends BasePlugin {
   }
   
   /**
-   * Ripristina i placeholder con tag HTML immagine
-   * @param {string} content - Contenuto con placeholder
-   * @param {Array<Object>} images - Informazioni sulle immagini
-   * @param {Object} options - Opzioni di rendering
-   * @returns {string} - Contenuto con tag HTML immagine
-   */
-  restoreContent(content, images, options = {}) {
-    if (!images || images.length === 0) return content;
-    
-    // Combina le opzioni predefinite con quelle passate
-    const renderOptions = { ...this.config, ...options };
-    
-    let processedContent = content;
-    
-    images.forEach(image => {
-      let imgHtml;
-      if (image.isClickable) {
         imgHtml = this.generateClickableImageHtml(image, renderOptions);
       } else {
         imgHtml = this.generateImageHtml(image, renderOptions);

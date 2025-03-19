@@ -81,11 +81,16 @@ export const REGEX_PATTERNS = {
   },
   
   LINKS: {
-    // Markdown links
+    // Markdown links [text](url)
     MARKDOWN_LINK: /\[([^\]]+)\]\(([^)]+)\)/g,
     
     // Raw URLs in text
-    PLAIN_URL: /(https?:\/\/[^\s<>"']+)/gi
+    PLAIN_URL: /(https?:\/\/[^\s<>"']+)/gi,
+    
+    // Optional: Add specific link types
+    EXTERNAL: /^https?:\/\/(?!localhost|[\d.]+)\S+$/i,
+    INTERNAL: /^\/[^/].*$/i,
+    EMAIL: /^mailto:[^@\s]+@[^@\s]+\.[^@\s]+$/i
   },
   
   // Table patterns

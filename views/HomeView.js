@@ -385,102 +385,30 @@ class HomeView {
     image.loading = 'lazy';
     image.decoding = 'async';
     
-    // Enforce a clean URL before we start
-    imageUrl = imageService.sanitizeUrl(imageUrl);
+    // Determina il layout corrente
+    const { layout } = this.getCardConfig();
     
-    // Determine current card size AND layout from container classes
-    const { size: cardSize, layout } = this.getCardConfig();
+    // Usa ImageService per processare l'immagine
+    const processedUrl = imageService.processCardImage(imageUrl, layout);
+    const srcset = imageService.createResponsiveSrcSet(imageUrl);
     
-    // Use different image sizes based on card size setting AND layout
-    const sizesToTry = this.getImageSizesToTry(cardSize, layout);
-    console.log(`Loading image with card size: ${cardSize}, layout: ${layout}`);
+    if (srcset) {
+      image.setAttribute('srcset', srcset);
+    }
     
-    let currentSizeIndex = 0;
-    let isLoadingPlaceholder = false;
-    let lastError = null;
-    
-    const loadNextSize = () => {
-      if (currentSizeIndex >= sizesToTry.length) {
-        loadPlaceholder();
-        return;
-      }
-      
-      const sizeOption = sizesToTry[currentSizeIndex++];
-      let url;
-      
-      if (sizeOption.direct) {
-        // Try direct URL with no proxy
-        url = imageUrl;
-      } else {
-        // Use the specified CDN and size
-        url = `https://${sizeOption.cdn}/${sizeOption.size}x0/${imageUrl}`;
-      }
-      
-      loadImage(url);
+    image.onload = () => {
+      content.classList.remove('loading', 'error');
+      content.classList.add('loaded');
     };
     
-    const loadImage = (url) => {
-      // Don't load the image if we're already loading the placeholder
-      if (isLoadingPlaceholder || url.startsWith('data:')) {
-        image.src = url;
-        content.classList.remove('loading');
-        return;
-      }
-      
-      const timeoutId = setTimeout(() => {
-        // Cancel load after timeout
-        if (!image.complete) {
-          console.log(`Image load timeout: ${url.substring(0, 50)}...`);
-          tryNextOption("Timeout");
-        }
-      }, 5000);
-      
-      image.onload = () => {
-        clearTimeout(timeoutId);
-        content.classList.remove('loading', 'error');
-        content.classList.add('loaded');
-      };
-      
-      image.onerror = (event) => {
-        clearTimeout(timeoutId);
-        console.log(`Image load error: ${url.substring(0, 50)}...`);
-        
-        // Try next size option
-        tryNextOption("Failed to load");
-      };
-      
-      // Start loading
-      image.src = url;
-    };
-    
-    const tryNextOption = (errorReason) => {
-      lastError = errorReason;
-      loadNextSize();
-    };
-    
-    const loadPlaceholder = () => {
-      isLoadingPlaceholder = true;
+    image.onerror = () => {
       content.classList.remove('loading');
       content.classList.add('error');
-      
-      // Create error message
-      const errorDisplay = document.createElement('div');
-      errorDisplay.className = 'error-message';
-      errorDisplay.textContent = 'Image not available';
-      
-      // Mark this URL as permanently failed to avoid future attempts
+      image.src = imageService.getDataUrlPlaceholder('Image not available');
       imageService.markImageAsFailed(imageUrl);
-      
-      // Use data URL placeholder
-      image.src = imageService.getDataUrlPlaceholder();
-      
-      // Add error info to container
-      content.appendChild(errorDisplay);
     };
     
-    // Start loading with first size option
-    loadNextSize();
-    
+    image.src = processedUrl;
     content.appendChild(image);
     return content;
   }
