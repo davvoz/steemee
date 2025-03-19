@@ -37,6 +37,7 @@ class YouTubeUtils {
       
       let match;
       while ((match = clonedRegex.exec(content)) !== null) {
+        // Extract just the 11-character video ID
         const videoId = match[1];
         const originalUrl = match[0];
         

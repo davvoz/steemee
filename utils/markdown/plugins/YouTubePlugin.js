@@ -13,7 +13,8 @@ export default class YouTubePlugin extends BasePlugin {
     // YouTube URL patterns
     this.patterns = [
       REGEX_PATTERNS.YOUTUBE.MAIN,
-      REGEX_PATTERNS.YOUTUBE.EMBED
+      REGEX_PATTERNS.YOUTUBE.EMBED,
+      REGEX_PATTERNS.YOUTUBE.SHORTS
     ];
     
     this.placeholderPrefix = 'YOUTUBE_EMBED_';
@@ -36,21 +37,18 @@ export default class YouTubePlugin extends BasePlugin {
       let match;
       
       while ((match = regex.exec(content)) !== null) {
+        // Extract just the 11-character video ID
         const videoId = match[1];
         const originalUrl = match[0];
         
         if (videoId && !seenIds.has(videoId)) {
           seenIds.add(videoId);
           
-          // Extract query parameters if present
-          const urlParams = originalUrl.includes('?') ? 
-            originalUrl.substring(originalUrl.indexOf('?')) : '';
-          
+          // Store only the clean video ID for embedding
           videos.push({
             id: videoId,
             originalUrl: this.normalizeUrl(originalUrl),
-            placeholder: `${this.placeholderPrefix}${videoId}${this.placeholderSuffix}`,
-            params: urlParams  // Store URL parameters
+            placeholder: `${this.placeholderPrefix}${videoId}${this.placeholderSuffix}`
           });
         }
       }
