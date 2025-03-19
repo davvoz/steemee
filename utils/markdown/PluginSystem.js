@@ -48,24 +48,26 @@ export default class PluginSystem {
     // Clear previous extractions
     this.extractedItems.clear();
     
-    // For each plugin:
-    // 1. Check if it can handle this content
-    // 2. Extract relevant items
-    // 3. Replace with placeholders
+    // Process plugins in priority order
     this.plugins.forEach(plugin => {
-      if (plugin.canProcess(processedContent)) {
-        const extractedItems = plugin.extract(processedContent);
-        
-        if (extractedItems && extractedItems.length > 0) {
-          // Store extracted items
-          this.extractedItems.set(plugin.name, extractedItems);
+      try {
+        // Only process if plugin reports it can handle the content
+        if (plugin.canProcess(processedContent)) {
+          const extractedItems = plugin.extract(processedContent);
           
-          // Replace with placeholders
-          processedContent = plugin.createPlaceholders(
-            processedContent, 
-            extractedItems
-          );
+          if (extractedItems && extractedItems.length > 0) {
+            // Store extracted items
+            this.extractedItems.set(plugin.name, extractedItems);
+            
+            // Replace with placeholders
+            processedContent = plugin.createPlaceholders(
+              processedContent, 
+              extractedItems
+            );
+          }
         }
+      } catch (error) {
+        console.error(`Error in plugin ${plugin.name} during preprocessing:`, error);
       }
     });
     
@@ -76,25 +78,38 @@ export default class PluginSystem {
    * Restore placeholders with rich content
    * @param {string} content - Content with placeholders
    * @param {Object} options - Rendering options
-   * @returns {string} Final content with rich elements
+   * @returns {Promise<string>} Final content with rich elements
    */
-  postProcess(content, options = {}) {
+  async postProcess(content, options = {}) {
     if (!content) return '';
     
     let processedContent = content;
     
     // Process plugins in order (based on priority)
-    this.plugins.forEach(plugin => {
-      const items = this.extractedItems.get(plugin.name) || [];
-      
-      if (items.length > 0) {
-        processedContent = plugin.restoreContent(
-          processedContent,
-          items,
-          options
-        );
+    for (const plugin of this.plugins) {
+      try {
+        const items = this.extractedItems.get(plugin.name) || [];
+        
+        if (items.length > 0) {
+          // Support both async and sync plugins
+          if (plugin.restoreContent.constructor.name === 'AsyncFunction') {
+            processedContent = await plugin.restoreContent(
+              processedContent,
+              items,
+              options
+            );
+          } else {
+            processedContent = plugin.restoreContent(
+              processedContent,
+              items,
+              options
+            );
+          }
+        }
+      } catch (error) {
+        console.error(`Error in plugin ${plugin.name} during postprocessing:`, error);
       }
-    });
+    }
     
     return processedContent;
   }

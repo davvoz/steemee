@@ -1,5 +1,4 @@
 import imageService from '../services/ImageService.js';
-import regexService from '../services/RegexService.js';
 import PluginSystem from '../utils/markdown/PluginSystem.js';
 import YouTubePlugin from '../utils/markdown/plugins/YouTubePlugin.js';
 import ImagePlugin from '../utils/markdown/plugins/ImagePlugin.js';
@@ -23,6 +22,9 @@ class ContentRenderer {
       useSteemContentRenderer: true,
       ...options
     };
+    
+    // Define regex patterns from centralized config
+    this.regexPatterns = REGEX_PATTERNS;
     
     // Define large image patterns from centralized config
     this.largeImagePatterns = LARGE_IMAGE_PATTERNS;
@@ -48,9 +50,6 @@ class ContentRenderer {
       youtube: this.pluginSystem.getPluginByName('youtube'),
       image: this.pluginSystem.getPluginByName('image')
     };
-
-    // Use regexService instead of direct patterns
-    this.regexService = regexService;
   }
   
   /**
@@ -67,15 +66,19 @@ class ContentRenderer {
     
     const videos = [];
     const seenIds = new Set();
+    
     const patterns = [
-      REGEX_PATTERNS.YOUTUBE.MAIN,
-      REGEX_PATTERNS.YOUTUBE.SHORT,
-      REGEX_PATTERNS.YOUTUBE.EMBED
+      this.regexPatterns.YOUTUBE.MAIN,
+      this.regexPatterns.YOUTUBE.SHORT,
+      this.regexPatterns.YOUTUBE.EMBED
     ];
     
     patterns.forEach(pattern => {
-      const matches = this.regexService.matchAll(content, pattern);
-      matches.forEach(match => {
+      let match;
+      // Reset pattern before use to avoid issues with global flag
+      const regex = new RegExp(pattern.source, pattern.flags);
+      
+      while ((match = regex.exec(content)) !== null) {
         const videoId = match[1];
         if (videoId && !seenIds.has(videoId)) {
           seenIds.add(videoId);
@@ -86,7 +89,7 @@ class ContentRenderer {
             embedUrl: `https://www.youtube.com/embed/${videoId}`
           });
         }
-      });
+      }
     });
     
     return videos;
@@ -119,7 +122,7 @@ class ContentRenderer {
    * Helper to escape special characters in regex patterns
    */
   escapeRegExp(string) {
-    return this.regexService.escapeRegExp(string);
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
   
   /**
@@ -161,75 +164,31 @@ class ContentRenderer {
    * @param {string} data.title - Post title
    * @param {string} data.body - Post body content (markdown)
    * @param {Object} options - Override default options
-   * @returns {Object} Rendered elements (container, title, content, images)
+   * @returns {Promise<Object>} Rendered elements (container, title, content, images)
    */
-  render(data, options = {}) {
+  async render(data, options = {}) {
     const renderOptions = { ...this.options, ...options };
     this.extractedImages = [];
-    this.extractedVideos = [];
-
-    // Add raw content logging
+    
+    // Add raw content logging for debugging
     if (data.body) {
       this.logRawContent(data.body);
     }
     
-    // Pre-process content with plugin system
-    let processedMarkdown = data.body || '';
-    if (processedMarkdown) {
-      processedMarkdown = this.pluginSystem.preProcess(processedMarkdown, renderOptions);
+    // First enhance image URLs in the content
+    let enhancedContent = data.body || '';
+    if (enhancedContent) {
+      enhancedContent = this.enhanceImageUrls(enhancedContent);
     }
+    
+    // Pre-process content with plugin system
+    const processedMarkdown = this.pluginSystem.preProcess(enhancedContent, renderOptions);
     
     // Render markdown to HTML
-    let processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
+    const processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
     
-    // Post-process content to restore rich elements
-    processedContent = this.pluginSystem.postProcess(processedContent, renderOptions);
-    
-    // Process content based on the type of content
-    let hasLargeImages = false;
-    
-    // First check if post appears to contain large images
-    if (data.body) {
-      // Enhance image URL detection before processing markdown
-      data.body = this.enhanceImageUrls(data.body);
-      
-      hasLargeImages = this.detectLargeImages(data.body);
-      
-      // Extract YouTube videos before processing content
-      if (renderOptions.enableYouTube) {
-        this.extractedVideos = this.extractYouTubeVideos(data.body);
-        // Convert YouTube links to placeholders that won't be affected by other processing
-        data.body = this.replaceYouTubeLinksWithPlaceholders(data.body, this.extractedVideos);
-      }
-    }
-    
-    // Process main body content using steem-content-renderer if available and enabled
-    if (renderOptions.useSteemContentRenderer && this.steemRenderer) {
-      try {
-        processedContent = this.renderWithSteemRenderer(data.body);
-      } catch (error) {
-        console.error('Error using steem-content-renderer:', error);
-        // Fall back to our custom processing
-        processedContent = this.renderWithFallback(data.body, renderOptions);
-      }
-    } else {
-      // Use our custom processing as fallback
-      processedContent = this.renderWithFallback(data.body, renderOptions);
-    }
-    
-    // Restore YouTube videos from placeholders to embed iframes
-    if (renderOptions.enableYouTube && this.extractedVideos.length > 0) {
-      processedContent = this.restoreYouTubeEmbeds(
-        processedContent, 
-        this.extractedVideos,
-        renderOptions.videoDimensions
-      );
-    }
-    
-    // Extract images if needed
-    if (renderOptions.extractImages && hasLargeImages) {
-      this.extractedImages = this.extractAllImages(data.body);
-    }
+    // Post-process content to restore rich elements with await
+    const finalContent = await this.pluginSystem.postProcess(processedContent, renderOptions);
     
     // Create the container element
     const container = document.createElement('div');
@@ -247,45 +206,22 @@ class ContentRenderer {
     // Create content element
     const contentElement = document.createElement('div');
     contentElement.className = 'content-body';
-    contentElement.innerHTML = processedContent;
+    contentElement.innerHTML = finalContent;
     container.appendChild(contentElement);
     
-    // Add extracted images if any and if rendering images is enabled
-    // Only add extracted images if we detect they're missing from the content
-    let imagesContainer = null;
-    if (renderOptions.renderImages && 
-        this.extractedImages.length > 0 && 
-        hasLargeImages && 
-        !this.imagesAlreadyInContent(this.extractedImages, processedContent)) {
-      
-      imagesContainer = this.renderImagesContainer();
-      
-      // Place images based on strategy (top, inline, bottom)
-      if (renderOptions.imagePosition === 'top' && titleElement) {
-        container.insertBefore(imagesContainer, titleElement.nextSibling);
-      } else if (renderOptions.imagePosition === 'bottom') {
-        container.appendChild(imagesContainer);
-      } else {
-        // Default: insert after title or at beginning
-        if (titleElement) {
-          container.insertBefore(imagesContainer, titleElement.nextSibling);
-        } else {
-          container.insertBefore(imagesContainer, container.firstChild);
-        }
-      }
-    }
-    
-    // Apply responsive image processing to all images in the container
+    // Apply responsive image processing to all images
     this.makeImagesResponsive(container);
     
     // Add proper attributes to external links
     this.enhanceExternalLinks(container);
     
+    // Enhance YouTube embeds
+    this.enhanceYouTubeEmbeds(container);
+    
     return {
       container,
       titleElement,
-      contentElement,
-      imagesContainer
+      contentElement
     };
   }
   
@@ -451,11 +387,7 @@ class ContentRenderer {
       );
     }
     
-    return this.regexService.replaceAll(
-      content,
-      REGEX_PATTERNS.TABLE.MINIMAL,
-      '<table class="markdown-table"><tbody><tr><td>&nbsp;</td></tr></tbody></table>'
-    );
+    return content;
   }
   
   /**
@@ -970,36 +902,70 @@ class ContentRenderer {
   fixImagesInTableCells(html) {
     if (!html) return '';
     
-    return this.regexService.replaceAll(html, REGEX_PATTERNS.HTML.TABLE_CELL, (match, cellContent) => {
-      let processedContent = cellContent;
-      const patterns = REGEX_PATTERNS.IMAGE_IN_TABLE;
+    // Look for image URLs inside table cells
+    return html.replace(/<td[^>]*>(.*?)<\/td>/gi, (match, cellContent) => {
+      // First check for Markdown image syntax - this is what we were missing!
+      const markdownImgRegex = /!\[(?:.*?)\]\(([^)]+)\)/gi;
       
-      // Process each image pattern
-      Object.entries(patterns).forEach(([type, pattern]) => {
-        processedContent = this.regexService.replaceAll(
-          processedContent,
-          pattern,
-          (url) => this.createImageTag(url, processedContent)
-        );
+      // Check if the cell content looks like an image URL but isn't wrapped in an img tag
+      const imageUrlRegex = /(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?\S*)?)/gi;
+      
+      // Special check for steemitimages.com DQm format URLs
+      const dqmRegex = /(https?:\/\/(?:steemitimages\.com|cdn\.steemitimages\.com)\/DQm[^\s<>"']+)/gi;
+      
+      // Check for peakd.com URLs
+      const peakdRegex = /(https?:\/\/files\.peakd\.com\/file\/[^\s<>"']+)/gi;
+      
+      // Replace direct image URLs with proper img tags
+      let processedContent = cellContent;
+      
+      // Handle Markdown image syntax first
+      processedContent = processedContent.replace(markdownImgRegex, (markdown, url) => {
+        // Check if the content already has an img tag with this URL
+        if (processedContent.includes(`<img`) && processedContent.includes(url)) {
+          return markdown;
+        }
+        return `<img src="${url}" loading="lazy" class="table-cell-image" alt="Table cell image">`;
       });
       
-      return processedContent !== cellContent ? `<td>${processedContent}</td>` : match;
+      // Handle DQm format URLs
+      processedContent = processedContent.replace(dqmRegex, (url) => {
+        if (!processedContent.includes(`<img`) || !processedContent.includes(url)) {
+          return `<img src="${url}" loading="lazy" class="table-cell-image" alt="Table cell image">`;
+        }
+        return url;
+      });
+      
+      // Handle peakd.com URLs
+      processedContent = processedContent.replace(peakdRegex, (url) => {
+        if (!processedContent.includes(`<img`) || !processedContent.includes(url)) {
+          return `<img src="${url}" loading="lazy" class="table-cell-image" alt="Table cell image">`;
+        }
+        return url;
+      });
+      
+      // Handle general image URLs 
+      processedContent = processedContent.replace(imageUrlRegex, (url) => {
+        // Skip if this URL is already in an img tag or has already been processed
+        if (
+          (processedContent.includes(`<img`) && 
+          processedContent.includes(url) && 
+          processedContent.includes('src=')) ||
+          url.includes('steemitimages.com/DQm') ||
+          url.includes('cdn.steemitimages.com/DQm') ||
+          url.includes('files.peakd.com')
+        ) {
+          return url;
+        }
+        return `<img src="${url}" loading="lazy" class="table-cell-image" alt="Table cell image">`;
+      });
+      
+      if (processedContent !== cellContent) {
+        return `<td>${processedContent}</td>`;
+      }
+      
+      return match;
     });
-  }
-
-  // Add helper method for creating image tags
-  createImageTag(url, existingContent) {
-    if (this.shouldSkipImageCreation(url, existingContent)) {
-      return url;
-    }
-    return `<img src="${url}" loading="lazy" class="table-cell-image" alt="Table cell image">`;
-  }
-
-  shouldSkipImageCreation(url, content) {
-    return (content.includes('<img') && content.includes(url) && content.includes('src=')) ||
-           url.includes('steemitimages.com/DQm') ||
-           url.includes('cdn.steemitimages.com/DQm') ||
-           url.includes('files.peakd.com');
   }
 
   /**
@@ -1016,6 +982,11 @@ class ContentRenderer {
     // Store content in a global variable for easy access
     window.lastRawContent = content;
     
+    // Aggiunta di un "pulsante" cliccabile nella console
+    console.log('%c CLICCA QUI PER COPIARE TUTTO IL CONTENUTO 📋', 
+      'background: #0078d4; color: white; padding: 8px 12px; border-radius: 4px; ' + 
+      'font-weight: bold; cursor: pointer; font-size: 14px; text-align: center;');
+    
     // Rendi disponibile il comando diretto per la copia
     window.copyRawContent = function() {
       if (window.lastRawContent) {
@@ -1026,6 +997,32 @@ class ContentRenderer {
       }
       return "Nessun contenuto da copiare";
     };
+
+  }
+
+  /**
+   * Enhance YouTube embeds in the container with player API and better styling
+   * @param {HTMLElement} container - Container with YouTube embeds
+   */
+  enhanceYouTubeEmbeds(container) {
+    if (!container) return;
+    
+    const embeds = container.querySelectorAll('.youtube-embed-container');
+    
+    embeds.forEach(embed => {
+      // Make sure container has proper classes
+      if (!embed.classList.contains('responsive-video-container')) {
+        embed.classList.add('responsive-video-container');
+      }
+      
+      // Add loading event handling
+      const iframe = embed.querySelector('iframe');
+      if (iframe) {
+        iframe.addEventListener('load', () => {
+          embed.classList.add('video-loaded');
+        });
+      }
+    });
   }
 }
 
