@@ -1,5 +1,6 @@
 import BasePlugin from '../BasePlugin.js';
 import { REGEX_PATTERNS } from './regex-config.js';
+import imageService from '../../../services/ImageService.js';
 
 /**
  * Plugin per gestire immagini nel contenuto markdown
@@ -297,41 +298,24 @@ export default class ImagePlugin extends BasePlugin {
   }
   
   /**
-   * Normalizza l'URL dell'immagine
+   * Normalizza l'URL dell'immagine usando imageService
    * @param {string} url - URL originale
    * @returns {string} - URL normalizzato
    */
   normalizeImageUrl(url) {
-    if (!url) return '';
-    
-    // Rimuovi caratteri di spaziatura
-    url = url.trim();
-    
-    // Assicurati che l'URL abbia uno schema http/https
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url.replace(/^\/\//, '');
-    }
-    
-    return url;
+    return imageService.sanitizeUrl(url);
   }
   
   /**
-   * Ottimizza l'URL dell'immagine per prestazioni migliori
+   * Ottimizza l'URL dell'immagine per prestazioni migliori usando imageService
    * @param {string} url - URL originale
    * @returns {string} - URL ottimizzato
    */
   optimizeImageUrl(url) {
-    if (!url) return '';
-    
-    // Se è un'immagine steemitimages.com, usa il proxy per ottimizzazione
-    if (url.includes('steemitimages.com') || url.includes('cdn.steemitimages.com')) {
-      // Evita doppia ottimizzazione
-      if (!url.includes('/0x0/') && !url.includes('/640x0/')) {
-        return `https://steemitimages.com/0x0/${url}`;
-      }
-    }
-    
-    return url;
+    return imageService.optimizeImageUrl(url, {
+      width: 800, // Dimensione ottimale per l'interfaccia utente
+      height: 0
+    });
   }
   
   /**

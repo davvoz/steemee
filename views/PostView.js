@@ -3,7 +3,7 @@ import steemService from '../services/SteemService.js'; // Changed from SteemSer
 import router from '../utils/Router.js';
 import LoadingIndicator from '../components/LoadingIndicator.js'; // Import LoadingIndicator
 import ContentRenderer from '../components/ContentRenderer.js';
-import ImageUtils from '../utils/process-body/ImageUtils.js'; // Add ImageUtils import
+import imageService from '../services/ImageService.js'; // Sostituito ImageUtils con imageService
 import voteService from '../services/VoteService.js';
 import authService from '../services/AuthService.js'; // Aggiungi questa importazione
 import commentService from '../services/CommentService.js';
@@ -1015,7 +1015,7 @@ async handleReply(parentComment, replyText) {
   // Add methods to extract the best image from a post (similar to ProfileView)
   getBestImage(post) {
     const metadata = this.parseMetadata(post.json_metadata);
-    return ImageUtils.getBestImageUrl(post.body, metadata) || '';
+    return imageService.getBestImageUrl(post.body, metadata) || '';
   }
 
   parseMetadata(jsonMetadata) {

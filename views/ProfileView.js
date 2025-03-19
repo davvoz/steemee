@@ -4,7 +4,7 @@ import authService from '../services/AuthService.js';
 import LoadingIndicator from '../components/LoadingIndicator.js';
 import router from '../utils/Router.js';
 import eventEmitter from '../utils/EventEmitter.js';
-import ImageUtils from '../utils/process-body/ImageUtils.js';
+import imageService from '../services/ImageService.js'; // Sostituito ImageUtils con imageService
 import InfiniteScroll from '../utils/InfiniteScroll.js';
 import GridController from '../components/GridController.js';
 
@@ -795,8 +795,9 @@ class ProfileView extends View {
     }
   }
 
+  // Metodo modificato per usare imageService
   getBestImage(post, metadata) {
-    return ImageUtils.getBestImageUrl(post.body, metadata);
+    return imageService.getBestImageUrl(post.body, metadata);
   }
 
   initGridController() {
