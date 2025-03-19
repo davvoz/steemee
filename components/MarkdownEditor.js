@@ -1,5 +1,5 @@
 import Component from './Component.js';
-import ContentRenderer from './ContentRenderer.js';
+import markdownService from '../services/MarkdownService.js'; // Update import
 
 export default class MarkdownEditor extends Component {
   constructor(parentElement, options = {}) {
@@ -11,15 +11,19 @@ export default class MarkdownEditor extends Component {
     this.height = options.height || '400px';
     this.previewMode = false;
     
-    // Initialize ContentRenderer with preview-specific options
-    this.contentRenderer = new ContentRenderer({
+    // Preview options
+    this.livePreview = options.livePreview || false;
+    this.previewTitle = options.previewTitle || null;
+    
+    // Store renderer options to pass to markdownService
+    this.rendererOptions = {
       containerClass: 'markdown-preview',
       imageClass: 'preview-image',
       useProcessBody: true,
       allowIframes: true,
       allowYouTube: true,
       ...options.rendererOptions
-    });
+    };
     
     // Bind methods
     this.handleInput = this.handleInput.bind(this);
@@ -230,7 +234,11 @@ export default class MarkdownEditor extends Component {
     this.value = this.textarea.value;
     this.onChange(this.value);
     
-    if (this.previewMode) {
+    // Update preview in real-time if livePreview is enabled
+    if (this.livePreview) {
+      this.updatePreview();
+    } else if (this.previewMode) {
+      // Standard behavior - only update when in preview mode
       this.updatePreview();
     }
   }
@@ -377,21 +385,29 @@ export default class MarkdownEditor extends Component {
   }
   
   updatePreview() {
-    // Use our content renderer to process the markdown properly
     try {
       // Clear previous content
       while (this.previewArea.firstChild) {
         this.previewArea.removeChild(this.previewArea.firstChild);
       }
       
-      // Use the content renderer to process the markdown
-      const { contentElement } = this.contentRenderer.render({
-        body: this.value
-      });
+      // Get dynamic title if available
+      const title = typeof this.previewTitle === 'function' 
+        ? this.previewTitle() 
+        : (this.previewTitle || '');
       
-      // Append the processed content to our preview area
-      if (contentElement) {
-        this.previewArea.appendChild(contentElement);
+      // Use the markdown service for rendering the preview
+      const renderResult = markdownService.render({
+        title: title,
+        body: this.value
+      }, this.rendererOptions);
+      
+      // Append the processed content
+      if (renderResult.container) {
+        // Clone the container to avoid reference issues
+        this.previewArea.appendChild(renderResult.container.cloneNode(true));
+      } else if (renderResult.content) {
+        this.previewArea.appendChild(renderResult.content);
       }
     } catch (error) {
       console.error('Error rendering preview:', error);

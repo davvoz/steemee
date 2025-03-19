@@ -4,6 +4,7 @@ import authService from '../services/AuthService.js';
 import createPostService from '../services/CreatePostService.js';
 import eventEmitter from '../utils/EventEmitter.js';
 import router from '../utils/Router.js';
+import markdownService from '../services/MarkdownService.js'; // Add this import
 
 class CreatePostView extends View {
   constructor(params = {}) {
@@ -15,6 +16,15 @@ class CreatePostView extends View {
     this.tags = [];
     this.isSubmitting = false;
     this.markdownEditor = null;
+    
+    // Use the same renderer options as in post view for consistency
+    this.rendererOptions = {
+      maxImageWidth: 800,
+      enableYouTube: true,
+      videoDimensions: { width: '100%', height: '480px' },
+      containerClass: 'post-preview-content',
+      imageClass: 'preview-image'
+    };
     
     // Set up event listeners for post creation events
     this.setupEventHandlers();
@@ -173,7 +183,7 @@ class CreatePostView extends View {
     // Add the container to the page
     this.element.appendChild(postEditor);
     
-    // Initialize the Markdown editor
+    // Initialize the Markdown editor with the common renderer options
     this.markdownEditor = new MarkdownEditor(
       document.getElementById('markdown-editor-container'),
       {
@@ -181,7 +191,10 @@ class CreatePostView extends View {
         onChange: (value) => {
           this.postBody = value;
         },
-        height: '500px'
+        height: '500px',
+        livePreview: true,
+        previewTitle: () => this.postTitle, 
+        rendererOptions: this.rendererOptions // Use the consistent options
       }
     );
     this.markdownEditor.render();

@@ -1,10 +1,11 @@
 /**
- * Base class for all markdown content plugins
+ * Base class for all markdown plugins
+ * Provides common functionality and interface for plugins
  */
 export default class BasePlugin {
   constructor() {
     this.name = 'base';
-    this.priority = 10;
+    this.priority = 0;
     this.patterns = [];
   }
   
@@ -19,18 +20,18 @@ export default class BasePlugin {
   }
   
   /**
-   * Extract content items that this plugin can handle
+   * Extract items from content based on patterns
    * @param {string} content - Content to process
-   * @returns {Array<Object>} Extracted items with metadata
+   * @returns {Array} Extracted items
    */
   extract(content) {
     return [];
   }
   
   /**
-   * Replace original content with placeholders
+   * Replace extracted items with placeholders
    * @param {string} content - Original content
-   * @param {Array<Object>} items - Extracted items
+   * @param {Array} items - Items to replace
    * @returns {string} Content with placeholders
    */
   createPlaceholders(content, items) {
@@ -38,13 +39,33 @@ export default class BasePlugin {
   }
   
   /**
-   * Restore placeholders with rich content
+   * Restore placeholders with processed content
    * @param {string} content - Content with placeholders
-   * @param {Array<Object>} items - Extracted items
-   * @param {Object} options - Rendering options
-   * @returns {string} Content with rich elements
+   * @param {Array} items - Items to restore
+   * @param {Object} options - Options for restoration
+   * @returns {string} Final processed content
    */
-  restoreContent(content, items, options = {}) {
+  restoreContent(content, items, options) {
     return content;
+  }
+  
+  /**
+   * Process the content with this plugin
+   * @param {string} content - Content to process
+   * @param {Object} options - Processing options
+   * @returns {Object} Processed content and extracted items
+   */
+  process(content, options = {}) {
+    // Extract items
+    const items = this.extract(content);
+    
+    // Replace with placeholders
+    const processedContent = this.createPlaceholders(content, items);
+    
+    // Return both for later restoration
+    return {
+      content: processedContent,
+      items
+    };
   }
 }

@@ -2,12 +2,12 @@ import View from './View.js';
 import steemService from '../services/SteemService.js'; // Changed from SteemService to steemService
 import router from '../utils/Router.js';
 import LoadingIndicator from '../components/LoadingIndicator.js'; // Import LoadingIndicator
-import ContentRenderer from '../components/ContentRenderer.js';
-import imageService from '../services/ImageService.js'; // Sostituisci ImageUtils con imageService
+import ImageUtils from '../utils/process-body/ImageUtils.js'; // Add ImageUtils import
 import voteService from '../services/VoteService.js';
 import authService from '../services/AuthService.js'; // Aggiungi questa importazione
 import commentService from '../services/CommentService.js';
-// Remove animation-init.js import
+import markdownService from '../services/MarkdownService.js'; // Add this import
+import { initializeAnimationControls } from '../utils/animation-init.js'; // Aggiungi alle importazioni esistenti
 
 class PostView extends View {
   constructor(params = {}) {
@@ -21,12 +21,11 @@ class PostView extends View {
     this.element = null; // Initialize element as null
     this.loadingIndicator = null; // Will hold the LoadingIndicator instance
 
-    // Initialize ContentRenderer with post-specific options
-    this.contentRenderer = new ContentRenderer({
+    // Use the markdown service instead of creating a new content renderer
+    this.contentRenderer = markdownService.getRenderer({
       containerClass: 'post-content-body',
       imageClass: 'post-image',
-      imagePosition: 'top',
-      useProcessBody: false // Updated to false since process_body.js is deprecated
+      imagePosition: 'top'
     });
 
     // Dictionary of regex patterns for content processing
@@ -132,7 +131,8 @@ class PostView extends View {
       // Controlla lo stato di voto
       await this.checkVoteStatus();
       
-      // Remove initialization of animation controls
+      // Inizializza i controlli per le animazioni
+      initializeAnimationControls();
     } catch (error) {
       console.error('Failed to load post:', error);
 
@@ -267,10 +267,13 @@ class PostView extends View {
     this.postContent.appendChild(postHeader);
 
 
-    // Use ContentRenderer for post body - FIX: uncomment and properly render content
-    const renderedContent = this.contentRenderer.render({
+    // Use the MarkdownService for rendering
+    const renderedContent = markdownService.render({
       title: this.post.title,
       body: this.post.body
+    }, {
+      containerClass: 'post-content-body',
+      imageClass: 'post-image'
     });
 
     // Append rendered content
@@ -466,18 +469,15 @@ class PostView extends View {
     commentHeader.appendChild(authorContainer);
     commentHeader.appendChild(dateContainer);
 
-    // Comment body - Use ContentRenderer instead of process_body.js
+    // Comment body - Use MarkdownService to render comments
     const commentBody = document.createElement('div');
     commentBody.className = 'comment-body';
 
-    const commentRenderer = new ContentRenderer({
-      containerClass: 'comment-content',
-      imageClass: 'comment-image',
-      useProcessBody: false // Make sure this is false
-    });
-
-    const renderedComment = commentRenderer.render({
+    const renderedComment = markdownService.render({
       body: comment.body
+    }, {
+      containerClass: 'comment-content',
+      imageClass: 'comment-image'
     });
 
     commentBody.appendChild(renderedComment.container);
@@ -1014,7 +1014,7 @@ async handleReply(parentComment, replyText) {
   // Add methods to extract the best image from a post (similar to ProfileView)
   getBestImage(post) {
     const metadata = this.parseMetadata(post.json_metadata);
-    return imageService.getBestImageUrl(post.body, metadata) || '';
+    return ImageUtils.getBestImageUrl(post.body, metadata) || '';
   }
 
   parseMetadata(jsonMetadata) {
