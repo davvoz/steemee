@@ -1,5 +1,4 @@
 import ImageUtils from '../utils/process-body/ImageUtils.js';
-import YouTubeUtils from '../utils/process-body/plugins/youtube.js';
 import { generatePostContent } from '../utils/process-body/process_body.js';
 import { imagePatterns, largeImagePatterns, resetRegexLastIndex } from '../utils/process-body/RegexPatterns.js';
 import PluginSystem from '../utils/markdown/PluginSystem.js';
@@ -30,7 +29,6 @@ class ContentRenderer {
     this.regexPatterns = imagePatterns;
     
     this.extractedImages = [];
-    this.extractedVideos = [];
     
     // Check if steem-content-renderer is available
     this.steemRenderer = typeof window !== 'undefined' && window.steemContentRenderer;
@@ -58,7 +56,6 @@ class ContentRenderer {
   render(data, options = {}) {
     const renderOptions = { ...this.options, ...options };
     this.extractedImages = [];
-    this.extractedVideos = [];
     
     // Pre-process content with plugin system
     let processedMarkdown = data.body;
@@ -66,13 +63,6 @@ class ContentRenderer {
       processedMarkdown = this.pluginSystem.preProcess(processedMarkdown, renderOptions);
     }
     
-    // Render markdown to HTML
-    let processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
-    
-    // Post-process content to restore rich elements
-    processedContent = this.pluginSystem.postProcess(processedContent, renderOptions);
-    
-    // Continue with rest of render method as before
     // Process content based on the type of content
     let hasLargeImages = false;
     
@@ -82,37 +72,25 @@ class ContentRenderer {
       data.body = this.enhanceImageUrls(data.body);
       
       hasLargeImages = this.detectLargeImages(data.body);
-      
-      // Extract YouTube videos before processing content
-      if (renderOptions.enableYouTube) {
-        this.extractedVideos = YouTubeUtils.extractYouTubeVideos(data.body);
-        // Convert YouTube links to placeholders that won't be affected by other processing
-        data.body = YouTubeUtils.replaceYouTubeLinksWithPlaceholders(data.body, this.extractedVideos);
-      }
     }
     
     // Process main body content using steem-content-renderer if available and enabled
+    let processedContent = '';
     if (renderOptions.useSteemContentRenderer && this.steemRenderer) {
       try {
-        processedContent = this.renderWithSteemRenderer(data.body);
+        processedContent = this.renderWithSteemRenderer(processedMarkdown);
       } catch (error) {
         console.error('Error using steem-content-renderer:', error);
         // Fall back to our custom processing
-        processedContent = this.renderWithFallback(data.body, renderOptions);
+        processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
       }
     } else {
       // Use our custom processing as fallback
-      processedContent = this.renderWithFallback(data.body, renderOptions);
+      processedContent = this.renderWithFallback(processedMarkdown, renderOptions);
     }
     
-    // Restore YouTube videos from placeholders to embed iframes
-    if (renderOptions.enableYouTube && this.extractedVideos.length > 0) {
-      processedContent = YouTubeUtils.restoreYouTubeEmbeds(
-        processedContent, 
-        this.extractedVideos,
-        renderOptions.videoDimensions
-      );
-    }
+    // Post-process content to restore rich elements (like YouTube videos)
+    processedContent = this.pluginSystem.postProcess(processedContent, renderOptions);
     
     // Extract images if needed
     if (renderOptions.extractImages && hasLargeImages) {
