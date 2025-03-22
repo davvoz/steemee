@@ -359,10 +359,18 @@ class CreatePostView extends View {
     const searchInput = document.getElementById('community-search');
     const dropdown = document.getElementById('community-dropdown');
     
-    // Mostra la community selezionata
+    // Ottieni il community ID per la navigazione
+    const communityId = community.name.replace(/^hive-/, '');
+    
+    // Mostra la community selezionata con un pulsante "View" aggiuntivo
     display.innerHTML = `
       <div class="selected-community-info">
-        <span class="selected-community-name">@${community.name}</span>
+        <div class="selected-community-header">
+          <span class="selected-community-name">@${community.name}</span>
+          <button type="button" class="view-community-btn" title="View this community">
+            <span class="material-icons">visibility</span>
+          </button>
+        </div>
         <span class="selected-community-title">${community.title || ''}</span>
       </div>
       <button type="button" class="clear-community-btn">
@@ -372,11 +380,37 @@ class CreatePostView extends View {
     
     // Aggiungi handler per il pulsante di cancellazione
     const clearBtn = display.querySelector('.clear-community-btn');
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       this.selectedCommunity = null;
       display.innerHTML = '';
       display.classList.add('hidden');
       searchInput.classList.remove('hidden');
+    });
+    
+    // Aggiungi handler per il pulsante "View"
+    const viewBtn = display.querySelector('.view-community-btn');
+    viewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      // Salva lo stato corrente del form
+      this.saveFormState();
+      
+      // Naviga alla pagina della community
+      window.location.href = `#/community/${communityId}`;
+    });
+    
+    // Rendi cliccabile anche il nome della community
+    const communityName = display.querySelector('.selected-community-name');
+    communityName.style.cursor = 'pointer';
+    communityName.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      // Salva lo stato corrente del form
+      this.saveFormState();
+      
+      // Naviga alla pagina della community
+      window.location.href = `#/community/${communityId}`;
     });
     
     // Mostra il display e nascondi l'input
@@ -385,6 +419,28 @@ class CreatePostView extends View {
     
     // Nascondi il dropdown
     dropdown.innerHTML = '';
+  }
+  
+  /**
+   * Salva lo stato corrente del form per permettere all'utente di tornare
+   * Nota: Questa è una funzionalità opzionale che puoi implementare
+   */
+  saveFormState() {
+    // Salva lo stato del form nella sessionStorage
+    const formState = {
+      title: this.postTitle,
+      body: this.postBody,
+      tags: this.tags.join(' '),
+      community: this.selectedCommunity ? this.selectedCommunity.name : null,
+      timestamp: Date.now()
+    };
+    
+    try {
+      sessionStorage.setItem('draftPostState', JSON.stringify(formState));
+      console.log('Form state saved');
+    } catch (error) {
+      console.error('Failed to save form state:', error);
+    }
   }
   
   /**

@@ -1,0 +1,163 @@
+/* Stili per il componente PostList */
+
+.post-item {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  overflow: hidden;
+  background-color: var(--background-color);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.post-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.post-item.has-thumbnail {
+  flex-direction: row;
+}
+
+.post-item-thumbnail {
+  flex: 0 0 200px;
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.post-item-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-item-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.post-item-author {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.post-author-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.post-author-name {
+  color: var(--text-color);
+  font-weight: 500;
+  text-decoration: none;
+  margin-right: 10px;
+}
+
+.post-author-name:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.post-item-community {
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.community-separator {
+  margin: 0 5px;
+  color: var(--text-secondary);
+}
+
+.post-community-link {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.post-community-link:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.community-icon-small {
+  font-size: 16px;
+  margin-right: 4px;
+}
+
+.post-item-date {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.post-item-title {
+  font-size: 18px;
+  margin: 0 0 12px 0;
+  color: var(--text-heading);
+  line-height: 1.3;
+}
+
+.post-item-excerpt {
+  color: var(--text-color);
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.post-item-meta {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.post-item-payout,
+.post-item-votes,
+.post-item-comments {
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+}
+
+.post-item-meta .material-icons {
+  font-size: 16px;
+  margin-right: 4px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .post-item.has-thumbnail {
+    flex-direction: column;
+  }
+  
+  .post-item-thumbnail {
+    max-width: 100%;
+    height: 180px;
+  }
+  
+  .post-item-author {
+    margin-bottom: 8px;
+  }
+  
+  .post-item-date {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 5px;
+  }
+}

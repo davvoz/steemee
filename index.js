@@ -14,6 +14,7 @@ import NavigationManager from './utils/NavigationManager.js';
 import { SearchService } from './services/SearchService.js';
 import RegisterView from './views/RegisterView.js';
 import EditProfileView from './views/EditProfileView.js'; // Importa EditProfileView
+import CommunityView from './views/CommunityView.js'; // Aggiungi questa importazione in cima con le altre
 
 // Setup routes with proper handlers
 router
@@ -28,6 +29,7 @@ router
   .addRoute('/wallet', WalletView, { requiresAuth: true })
   .addRoute('/search', SearchView) // Add search route
   .addRoute('/tag/:tag', TagView) // Add the TagView route
+  .addRoute('/community/:id', CommunityView) // Aggiungi questa riga per la community
   .addRoute('/@:username', ProfileView)
   .addRoute('/@:author/:permlink', PostView)
   .addRoute('/edit-profile/:username', EditProfileView, { requiresAuth: true }) // Aggiungi questa riga
